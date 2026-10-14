@@ -7,11 +7,11 @@
 ## Skills
 
 每个技能位于独立目录，以 `SKILL.md` 为入口，按需包含脚本和参考资料。
-具体用法见对应技能页面。
+具体用法见对应技能的 `SKILL.md`。
 
 | 技能 | 说明 |
 |---|---|
-| [termius-vault](termius-vault/README.zh-CN.md) | 在 Termius 与 OpenSSH 之间双向迁移 SSH 主机和关联密钥，导出保险库数据、检查认证关联。适用于配置迁移、备份与密钥绑定排查。 |
+| [termius-vault](termius-vault/SKILL.md) | 在 Termius 与 OpenSSH 之间双向迁移 SSH 主机和关联密钥，导出保险库数据、检查认证关联。适用于配置迁移、备份与密钥绑定排查。 |
 
 ## 获取
 

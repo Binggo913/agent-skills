@@ -24,6 +24,21 @@ stdout is JSON, diagnostics go to stderr. Read only the reference for the task.
 | Spec-based additions or several requested operations | `scripts/termius.sh push <spec>` / `batch <plan>` | [Spec and batch formats](references/commands.md) |
 | Implementation/upgrade diagnosis only | Inspect affected source | [Vault format](references/termius-format.md) |
 
+## Direct CLI
+
+Run from this skill directory; the examples are separate tasks, not a sequence:
+
+```bash
+scripts/termius.sh import "$HOME/.ssh"                                  # OpenSSH -> Termius
+scripts/termius.sh export-ssh "$HOME/.ssh"                              # Termius -> WSL SSH config
+scripts/termius.sh export-ssh "/mnt/c/Users/<WindowsUser>/.ssh" \
+  --platform windows --keys                                            # + authorized private keys
+```
+
+YAML specs additionally need PyYAML. Windows output uses Windows ACLs;
+WSL/Linux output uses POSIX permissions. Existing entries are not automatically
+updated or replaced.
+
 ## Essential boundaries
 
 - The live vault bridge is Windows Termius via WSL. Reverse output can instead

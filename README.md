@@ -7,11 +7,11 @@ A collection of reusable, task-focused [Agent Skills](https://agentskills.io/spe
 ## Skills
 
 Each skill is an independent directory with a `SKILL.md` entrypoint and any
-supporting scripts or references it needs. Follow its page for detailed usage.
+supporting scripts or references it needs. See each skill's `SKILL.md` for usage.
 
 | Skill | Description |
 |---|---|
-| [termius-vault](termius-vault/README.md) | Bidirectional migration of SSH hosts and linked keys between Termius and OpenSSH; export vault data and inspect authentication bindings. Useful for configuration migration, backups, and key-binding troubleshooting. |
+| [termius-vault](termius-vault/SKILL.md) | Bidirectional migration of SSH hosts and linked keys between Termius and OpenSSH; export vault data and inspect authentication bindings. Useful for configuration migration, backups, and key-binding troubleshooting. |
 
 ## Get
 
