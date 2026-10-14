@@ -21,10 +21,6 @@ git clone https://github.com/Binggo913/agent-skills.git
 
 Install the chosen skill directory using the method supported by your agent.
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
 ## License
 
 MIT — see [LICENSE](LICENSE).

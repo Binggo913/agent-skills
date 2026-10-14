@@ -21,10 +21,6 @@ git clone https://github.com/Binggo913/agent-skills.git
 
 通过当前 agent 支持的方式安装所选技能目录。
 
-## 参与维护
-
-见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
-
 ## 许可证
 
 MIT —— 见 [LICENSE](LICENSE)。
