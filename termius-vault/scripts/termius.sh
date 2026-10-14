@@ -7,9 +7,10 @@
 #
 # Usage:
 #   termius.sh doctor
-#   termius.sh export [--secrets] [--restart]
-#   termius.sh verify [--restart]
-#   termius.sh push <spec.json|yaml> [--dry-run]
+#   termius.sh export [--secrets] [--restart] [--keep-debug]
+#   termius.sh verify [--restart] [--keep-debug]
+#   termius.sh push <spec.json|yaml> [--dry-run] [--restart]
+#   termius.sh import <ssh-config|.ssh-dir> [--dry-run] [--restart]
 #
 # Environment:
 #   TERMIUS_EXE          full Windows path to Termius.exe (optional)
@@ -69,6 +70,21 @@ case "$cmd" in
     desired_win="$(expand_desired "$desired")"
     args=("push" "--desired" "$desired_win" "${rest[@]}")
     ;;
+  import)
+    src=""
+    rest=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --dry-run|--restart|--secrets|--keep-debug) rest+=("$1"); shift ;;
+        -*) die "unknown flag: $1" ;;
+        *) if [[ -z "$src" ]]; then src="$1"; else die "unexpected arg: $1"; fi; shift ;;
+      esac
+    done
+    [[ -n "$src" ]] || die "import requires an SSH config file or .ssh directory"
+    spec_unix="$UNIX_TEMP/termius-sshspex-$$.json"
+    python3 "$SCRIPT_DIR/sshconfig_to_spec.py" "$src" > "$spec_unix"
+    args=("push" "--desired" "$(expand_desired "$spec_unix")" "${rest[@]}")
+    ;;
   export)
     args=("export")
     for a in "$@"; do args+=("$a"); done
@@ -78,7 +94,20 @@ case "$cmd" in
     for a in "$@"; do args+=("$a"); done
     ;;
   ""|-h|--help|help)
-    sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    cat <<'USAGE'
+termius.sh - drive the termius-vault skill
+
+Usage:
+  termius.sh doctor
+  termius.sh export [--secrets] [--restart] [--keep-debug]
+  termius.sh verify [--restart] [--keep-debug]
+  termius.sh push <spec.json|yaml> [--dry-run] [--restart]
+  termius.sh import <ssh-config|.ssh-dir> [--dry-run] [--restart]
+
+Env:
+  TERMIUS_EXE       full Windows path to Termius.exe
+  TERMIUS_CDP_PORT  CDP port (default 9222)
+USAGE
     exit 0
     ;;
   *) die "unknown command: $cmd" ;;
@@ -87,7 +116,7 @@ esac
 # ------------------------------------------------------------------ run
 BAT_WIN="$WIN_TEMP\\termius-ctl-run-$$.bat"
 BAT_UNIX="$(wslpath -u "$BAT_WIN")"
-cleanup() { rm -f "$BAT_UNIX" "$UNIX_TEMP/termius-desired-$$.json" 2>/dev/null || true; }
+cleanup() { rm -f "$BAT_UNIX" "$UNIX_TEMP/termius-desired-$$.json" "$UNIX_TEMP/termius-sshspex-$$.json" 2>/dev/null || true; }
 trap cleanup EXIT
 
 {

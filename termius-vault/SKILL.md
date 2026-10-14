@@ -2,7 +2,7 @@
 name: termius-vault
 description: Read, export, verify, or import hosts/keys/passwords for the Termius desktop SSH client on Windows by decrypting its local vault and, optionally, writing records back through Termius' own database. Use when a task involves inspecting or backing up Termius hosts, migrating an SSH config into Termius, bulk-adding hosts and identities (keys or passwords) to Termius, or verifying Termius host→identity→key mappings.
 license: MIT
-compatibility: Windows host with Termius desktop installed and signed in, driven from WSL/Linux. Requires cmd.exe and wslpath. Uses Termius' bundled Electron/Node runtime, so no separate Node.js or npm install is needed.
+compatibility: Termius desktop read/write implemented for Windows, driven from WSL/Linux (uses cmd.exe and wslpath). SSH-config parsing is portable; macOS is plausible but unimplemented and untested. Uses Termius' bundled Electron/Node runtime, so no separate Node.js or npm install is needed.
 disable-model-invocation: true
 metadata:
   platform: windows
@@ -63,8 +63,10 @@ scripts/termius.sh doctor                 # environment + crypto sanity check
 scripts/termius.sh export                 # hosts + known_hosts (secrets redacted)
 scripts/termius.sh export --secrets       # include passwords / private keys
 scripts/termius.sh verify                 # host → identity → key/password table
-scripts/termius.sh push <spec.json>       # add missing hosts/keys
+scripts/termius.sh push <spec.json>       # add missing hosts/keys from a spec
 scripts/termius.sh push <spec.json> --dry-run
+scripts/termius.sh import <ssh-dir|config> # add hosts parsed from an SSH config
+scripts/termius.sh import ~/.ssh --dry-run
 ```
 
 Flags:
@@ -77,6 +79,32 @@ Flags:
 
 `push` always: closes any running Termius, backs up the IndexedDB directory,
 writes the new records, then restarts Termius normally so it can sync.
+
+## Importing an existing SSH config
+
+`import` parses an OpenSSH `config` (handling `Include`, multiple/negated
+`Host` patterns, and `IdentityFile`), builds the same spec `push` uses, and
+adds every missing host. Existing hosts (matched by ssh alias / label) are
+skipped, so it is idempotent.
+
+The source can be any `.ssh` directory or config file **visible from the
+machine running the driver**. Common cases on this setup:
+
+| Source | Path to pass |
+|---|---|
+| WSL (Linux) `~/.ssh` | `~/.ssh` |
+| Windows host `%USERPROFILE%\.ssh` | `/mnt/c/Users/<user>/.ssh` (or a `C:/...`/`D:/...` path; Windows paths in `IdentityFile`/`Include` are mapped to `/mnt/<drive>/...`) |
+
+Import both in one go, for example:
+
+```bash
+scripts/termius.sh import ~/.ssh --dry-run
+scripts/termius.sh import /mnt/c/Users/<user>/.ssh
+```
+
+`import` reuses the `push` write path, so it is **only as platform-portable as
+Termius write access is** (see Platforms). The parsing itself is pure Python and
+runs anywhere.
 
 ## Pushing hosts: the spec file
 
@@ -115,6 +143,29 @@ writes the new records, then restarts Termius normally so it can sync.
   output as sensitive.
 - Publishing/using this against data you do not own may violate Termius' terms;
   use it on your own machine and your own account.
+
+## Platforms
+
+The SSH-config **parsing** (`sshconfig_to_spec.py`) and the `push` **spec
+format** are platform-neutral. What differs per OS is talking to the local
+Termius install:
+
+- **Windows host + WSL — supported and tested.** The controller reads the local
+  key from Credential Manager, uses `%LOCALAPPDATA%\Programs\Termius\...`,
+  and drives Termius through CDP.
+- **macOS — plausible, treat as experimental.** Termius is also Electron on
+  macOS, so the same CDP approach should work, but the platform glue differs and
+  is **not implemented or tested** here:
+  - local key: Keychain, not Credential Manager;
+  - vault path: `~/Library/Application Support/Termius`;
+  - native module: `.../libtermius/mac-arm64/termius.node` (or `mac-x64`);
+  - app: `Termius.app`, not `Termius.exe`.
+
+  The intended use is "import this Mac's own `~/.ssh` into Termius". Do not
+  assume it works: run `doctor` first, adapt `termius-ctl.js` / add a
+  `cred-read` equivalent for Keychain, and verify on the target machine before
+  relying on any write. **Let the situation decide** — a Unix-like host does not
+  by itself guarantee the Termius side is wired up.
 
 ## Troubleshooting
 

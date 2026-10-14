@@ -12,7 +12,7 @@ credentials, or machine-specific paths.
 
 | Skill | Description |
 |---|---|
-| [`termius-vault`](termius-vault/) | Read, export, verify, or import hosts/keys/passwords for the Termius desktop SSH client on Windows. |
+| [`termius-vault`](termius-vault/) | Read, export, verify, or import hosts/keys/passwords for the Termius desktop SSH client; also import hosts from an OpenSSH `config` (e.g. a Windows host or WSL `~/.ssh`). |
 
 ### Activation and token cost
 
@@ -79,10 +79,18 @@ request).
 
 ### Compatibility
 
-Skills here may declare a `compatibility` field. `termius-vault` needs a
-**Windows host running the Termius desktop app, driven from WSL/Linux** — it
-uses `cmd.exe`, `wslpath`, and Termius' bundled Electron runtime. Other skills
-may have different requirements; check each `SKILL.md`.
+Skills here may declare a `compatibility` field.
+
+`termius-vault`'s SSH-config **parsing** and `push` spec are platform-neutral,
+so you can import a **Windows host `.ssh`** (`/mnt/c/Users/<user>/.ssh`) and a
+**WSL `~/.ssh`** into the same Termius. The Termius **write/read** side is
+currently implemented for **Windows only** (Credential Manager, `cmd.exe`,
+`wslpath`, `Termius.exe`). On **macOS** the same CDP approach is plausible —
+Termius is Electron there too — but the platform glue (Keychain, app paths,
+`mac-*/termius.node`) is not implemented or tested; run `doctor` and verify
+before trusting writes. See the skill's `SKILL.md` → Platforms.
+
+Other skills may have different requirements; check each `SKILL.md`.
 
 ## Layout
 
