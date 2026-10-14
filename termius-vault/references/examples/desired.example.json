@@ -1,0 +1,21 @@
+{
+  "keys": {
+    "work-ed25519": { "private_key_file": "~/.ssh/id_ed25519_work" }
+  },
+  "hosts": [
+    {
+      "label": "build-arm",
+      "address": "10.0.0.10",
+      "port": 2201,
+      "user": "alice",
+      "key": "work-ed25519"
+    },
+    {
+      "label": "jump-legacy",
+      "address": "10.0.0.20",
+      "port": 22,
+      "user": "alice",
+      "password": "REPLACE_ME"
+    }
+  ]
+}

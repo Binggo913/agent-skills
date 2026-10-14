@@ -1,0 +1,13 @@
+# secrets and local artifacts
+*.secrets.json
+desired.local.json
+*.dump.json
+secrets/
+
+# editors / OS
+.DS_Store
+*.swp
+
+# python
+__pycache__/
+*.pyc
