@@ -1,11 +1,15 @@
-# Commands and lifecycle
+# Commands, Termius lifecycle, and recovery
+
+Run from the skill directory. For OpenSSH source handling use [import.md](import.md);
+for target SSH files and theoretical macOS use [export-ssh.md](export-ssh.md).
+This reference owns live Termius lifecycle, push/batch formats, and recovery.
 
 ## Command selection
 
 | Command | Result | Record writes |
 |---|---|---|
 | `doctor` | Runtime, crypto, credential and process checks; no GUI launch | No |
-| `export` | JSON hosts/known_hosts; `--keys` adds linked keys, `--secrets` also passwords | No |
+| `export` | JSON hosts/known_hosts; `--keys` adds linked keys, `--secrets` also passwords/passphrases | No |
 | `export-ssh <target>` | OpenSSH configs; `--keys` permits private-key files | Target .ssh only |
 | `verify` | Host/address/port/user/auth mapping; never prints passwords | No |
 | `push <spec>` | Inserted entries, verified local mappings, backup path | Add-only |
@@ -15,8 +19,8 @@
 
 `--restart` allows closing active Termius/SSH sessions if required. It is not
 needed when Termius is closed. An existing debugging instance can be borrowed
-for reads and no-op pushes without restart, but an actual write requires a
-stopped-database backup and therefore restart permission.
+for reads and no-op pushes without restart. An actual Termius record write
+requires a stopped-database backup and therefore restart permission.
 
 `--keep-debug` retains a successfully started debugging instance for later
 commands. It also defers the final write refresh/sync restart. This is opt-in:
@@ -31,8 +35,6 @@ sensitive. JSON is dependency-free; YAML input additionally requires PyYAML.
 
 Environment: `TERMIUS_EXE` overrides the Windows executable path;
 `TERMIUS_CDP_PORT` overrides the loopback debugging port (default 9222).
-
-For reverse migration, read [export-ssh.md](export-ssh.md), not the push schema.
 
 ## Push spec
 
@@ -65,18 +67,20 @@ examples. Do not substitute real credentials into tracked examples.
 ```json
 {
   "operations": [
-    { "command": "push", "desired": "desired.local.json", "dryRun": true },
     { "command": "push", "desired": "desired.local.json" },
     { "command": "export" }
   ]
 }
 ```
 
-Run `scripts/termius.sh batch <plan.json>`, adding `--restart` only when closing
+The example combines a requested write and inventory export; it is not a
+required post-write checklist. A single import/push does not need a batch.
+Run `scripts/termius.sh batch "<plan.json>"`, adding `--restart` only when closing
 existing sessions has been authorized. Supported operations: `export`,
-`verify`, `push`. An export operation can explicitly set `"keys": true` or `"secrets": true`;
-a push can set `"dryRun": true`. A desired spec may be inline or a file path
-relative to the plan. SSH imports instead accept multiple sources directly;
+`verify`, `push`. An export operation can explicitly set
+`"keys": true` or `"secrets": true`; a push can set `"dryRun": true`. A desired spec
+may be inline or a file path relative to the plan. SSH imports instead accept
+multiple sources directly;
 there is no need to create one batch operation per source.
 
 One batch reads the local key once, shares one CDP connection, and takes at
@@ -87,13 +91,13 @@ Further writes reuse that backup and connection. Refresh/sync startup happens
 once after the whole batch, not after each write. Operations execute in order;
 a dry-run does not grant permission or conditionally skip later operations.
 
-For a source-only preview, use the parser described in [import.md](import.md).
-It avoids any app lifecycle. `push` already verifies local mappings, so another
-verification command is normally unnecessary.
+## Application lifecycle and visual limits
 
-## State restoration and visual limits
+The following table concerns the Termius source app. Reverse `export-ssh` is a
+**read** of Termius even when it writes target `.ssh` files. `--from` output
+never starts Termius. Target-file behavior belongs to [export-ssh.md](export-ssh.md).
 
-| Initial state | Read-only task | Task with actual writes |
+| Initial state | Termius reads (including reverse export) | Termius record writes |
 |---|---|---|
 | Closed | Start CDP once; close at end; remain closed | Backup before start; start CDP once; normal startup at end |
 | Running normally | Refuse without `--restart`; if authorized, one CDP cycle then normal startup | Require `--restart`; stop/backup once, one CDP cycle, normal startup at end |
@@ -106,16 +110,17 @@ supported before force-stop fallback. This reduces repeated flashes; it is
 **not a headless Termius implementation** and does not promise invisible GUI
 startup. Do not modify Termius's installed files to hide its windows.
 
-Local post-write verification checks address, port, username and auth binding.
+For Termius record writes, local verification checks address, port, username
+and auth binding.
 It does not prove cloud sync, native UI visibility, or successful SSH login.
-Writes span separate IndexedDB databases and are not atomic across the full
+Those writes span separate IndexedDB databases and are not atomic across the full
 record graph: a failure can leave partial additions. Do not blindly retry.
 
-## Backups, temporary files, and recovery
+## Termius backups, temporary files, and recovery
 
 The backup is `%APPDATA%/Termius-backup-<timestamp>-<pid>/IndexedDB`. Failure to
-stop the app or copy the database aborts writes. Backups contain encrypted
-credentials; keep them private. A confirmed closed app may be backed up even
+stop the app or copy the database aborts Termius writes. Backups contain
+encrypted credentials; keep them private. A confirmed closed app may be backed up even
 if the later comparison finds no missing hosts, avoiding an extra GUI cycle.
 
 Prepared plaintext specs live in a unique Windows temp directory, restricted

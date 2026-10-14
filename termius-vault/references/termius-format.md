@@ -4,6 +4,9 @@ Reverse-engineering notes gathered from a Windows Termius desktop install.
 Field names and schemas can change between releases; treat this as a map, not a
 contract, and re-verify after upgrades.
 
+Read this only for source/upgrade diagnosis, not ordinary onboarding. Shared
+operating behavior and recovery belong to [commands.md](commands.md).
+
 ## Storage layout
 
 | Path | Contents |
@@ -26,7 +29,9 @@ the key for `crypto.systems.FromEncryptionKey`.
 
 Termius itself obtains it via keytar (`getPassword('Termius')`) and caches it in
 the `settings` store as `localKey`. If Credential Manager has no entry but the
-app is signed in, the cached settings value is an alternative source.
+app is signed in, the cached settings value is a possible alternative source.
+The shipped controller reads Credential Manager only; it does not implement
+that fallback.
 
 ## Crypto module usage
 

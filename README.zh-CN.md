@@ -2,60 +2,75 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-跨 agent 的 [Agent Skills](https://agentskills.io/specification) 集合，适用于
-[Pi](https://github.com/badlogic/pi-mono)、Claude Code、Codex CLI、Amp、Droid。
-每个顶层目录是一个 skill（`SKILL.md` + 可选的 `scripts/`、`references/`）。
-这些 skill 都是通用工具：不含个人信息、凭据或与具体机器绑定的路径。
+可复用、面向具体任务的 [Agent Skills](https://agentskills.io/specification) 集合。
+每个技能独立说明用途、依赖、脚本和操作边界；本仓库是技能库，不是单个应用，
+也不提供所有技能共用的运行时。
 
-## 技能
+## 技能目录
 
-| 技能 | 作用 |
+| 技能 | 用途 |
 |---|---|
-| [`termius-vault`](termius-vault/) | Termius ↔ OpenSSH 主机/密钥双向迁移，以及保险库导出与关联校验。Windows/WSL 实时访问；macOS 理论支持，需结合机器判断。 |
+| [termius-vault](termius-vault/README.zh-CN.md) | Termius ↔ OpenSSH 主机与关联密钥迁移，以及保险库数据和认证关联检查。 |
 
-## 安装
+具体环境支持、限制与用法见各技能页面。增加一个技能，不意味着它的依赖成为
+整个仓库的共同要求。
 
-将仓库克隆到 agent 配置的技能目录。以下是常见布局，发现规则和嵌套目录支持
-取决于 agent 及版本；若无法发现嵌套技能，单独链接具体的 skill 目录。
+## 获取并注册技能
 
 ```bash
-REPO=https://github.com/Binggo913/agent-skills.git
-
-git clone "$REPO" ~/.pi/agent/skills/agent-skills      # Pi
-git clone "$REPO" ~/.codex/skills/agent-skills         # Codex CLI
-git clone "$REPO" ~/.config/amp/tools/agent-skills     # Amp
-git clone "$REPO" ~/.factory/skills/agent-skills       # Droid
-
-mkdir -p ~/.claude/skills                              # Claude Code
-ln -sfn ~/.pi/agent/skills/agent-skills/termius-vault ~/.claude/skills/termius-vault
+git clone https://github.com/Binggo913/agent-skills.git "$HOME/agent-skills"
 ```
 
-显式调用：Pi 用 `/skill:<name>`，Claude Code 用 `/<name>`，Codex 用 `$<name>`。
+已有当前检出时直接复用，然后：
 
-## 激活方式与上下文开销
+1. 从目录选择技能，阅读它的环境要求。
+2. 使用 agent 支持的安装器或已配置的发现目录，注册**具体技能目录**；
+   该目录的根部应有 `SKILL.md`。
+3. 按当前 agent 的方式选择/调用技能，再说明任务。
 
-保留 `disable-model-invocation: true`，在支持此设置的 agent 中使用显式调用。
-不同 agent 的发现和调用规则不同，不能笼统承诺“未使用时零 token”。
-技能入口只保留决策所需的信息；命令/格式、导入限制与实现说明分开放入参考文件，
-仅在对应任务需要时读取。
+Git 克隆只是取得文件，不一定完成注册。搜索路径、嵌套目录扫描、符号链接、
+调用语法和可识别的元数据取决于 agent 及版本。不要假定注册仓库根目录就能发现
+全部技能，也不要把某一个客户端的目录布局当作通用规范；以当前配置和文档为准。
 
-## 兼容性与操作流程
+如果 agent 支持目录符号链接，可选的注册方式为：
 
-`termius-vault` 需要 Windows Termius 桌面版、WSL 互操作、Python 3、
-`cmd.exe` 和 `wslpath`。使用 Termius 自带 Electron/Node 运行时；YAML 输入
-额外需要 PyYAML。SSH config 解析可跨平台；macOS 保持理论支持，需 agent 结合技能与当前机器判断，
-不能宣称已验证。现有实时保险库桥接仍针对 Windows。
+```bash
+# 替换两个路径；目标位置必须尚不存在。
+ln -s "/path/to/agent-skills/<skill-name>" "/configured/agent/skills/<skill-name>"
+```
 
-多个 SSH 来源合并为一次 `import`；多个保险库操作用 `batch`。写入直接返回本地
-关联校验，避免为校验再启动一次。反向 `export-ssh` 需明确指定目标目录，保留已有
-主机和密钥内容；只有 `--keys` 才保存私钥，密码不写入 SSH 文件。辅助程序隐藏控制台窗口，读取恢复原先的开/关
-状态，写入 Termius 时仅在流程最后刷新一次。Termius 首次启动仍可能显示窗口，不能承诺无界面。
-`--restart` 需获准关闭现有会话；`--keep-debug` 必须显式选择，因为 CDP 允许本机
-进程访问保险库。
+否则使用它支持的安装器或复制具体技能目录，不覆盖已有安装，也不强行使用链接。
 
-详见[技能入口](termius-vault/SKILL.md)与
-[命令和生命周期说明](termius-vault/references/commands.md)、
-[反向导出与 macOS 说明](termius-vault/references/export-ssh.md)。
+使用 Git 检出时，可在准备更新后执行：
+
+```bash
+git -C "$HOME/agent-skills" pull --ff-only
+```
+
+链接式安装随检出更新；复制式安装需要重新复制/安装变动的技能。卸载时只移除
+所选技能的注册、链接或安装副本，不隐式删除技能生成的用户数据。
+
+## 文档分工
+
+| 位置 | 读者与职责 |
+|---|---|
+| 根目录 `README*` | 选择技能，了解仓库级安装方式与结构。 |
+| 按需提供的技能 `README*` | 面向人的上手说明、依赖、示例与导航。 |
+| `<skill>/SKILL.md` | agent 入口：适用范围、关键约束与任务分流。 |
+| `<skill>/references/` | 具体模式的操作细节和实现说明，按需读取。 |
+| `<skill>/scripts/` | 可执行辅助工具，依赖由所属技能说明。 |
+
+不要求每个技能都创建全部可选目录或文档。应通过 `SKILL.md` 识别技能，
+而不是把任意顶层目录都视为技能。
+
+发现和调用策略属于具体技能及其宿主 agent。这种布局让共享入口保持精简，
+但不承诺各客户端激活行为一致或“零 token 开销”。安装或调用技能本身也不等于
+授权其执行敏感操作。
+
+## 参与维护
+
+范围、文档归属、示例与适度验证要求见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
+仓库通用说明留在此处，技能专属操作放回对应技能目录。
 
 ## 许可证
 

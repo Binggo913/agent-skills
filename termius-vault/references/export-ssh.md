@@ -1,17 +1,22 @@
 # Termius → OpenSSH
 
+This reference owns target SSH files, reverse-only options, and Mac assessment.
+Shared live-source flags and app behavior are in
+[commands.md](commands.md#application-lifecycle-and-visual-limits).
+
 ## Choose the actual destination
 
 Run from the skill directory. A destination is mandatory to avoid mixing the
 WSL home with the Windows user's home:
 
 ```bash
-scripts/termius.sh export-ssh ~/.ssh
-scripts/termius.sh export-ssh /mnt/c/Users/<user>/.ssh --platform windows --keys
+scripts/termius.sh export-ssh "$HOME/.ssh"
+scripts/termius.sh export-ssh "/mnt/c/Users/<WindowsUser>/.ssh" --platform windows --keys
 ```
 
-Default: write connection metadata only. `--keys` explicitly authorizes saving
-host-linked private keys. Without it, key-based entries report that IdentityFile
+Replace `<WindowsUser>` with the intended Windows account. These are separate
+task examples, not a sequence. Default: write connection metadata only.
+`--keys` explicitly authorizes saving host-linked private keys. Without it, key-based entries report that IdentityFile
 still needs configuring. Login passwords and stored key passphrases are never
 written; encrypted key contents remain encrypted and authentication may prompt.
 No SSH connection is attempted.
@@ -20,8 +25,8 @@ No SSH connection is attempted.
 `--dry-run` reports additions/skips without creating any target directory or
 files. Use it when a destination comparison is useful, not as a mandatory step.
 A live-source export reads Termius once and streams JSON directly to the writer;
-it does not create an intermediate plaintext vault dump. Usual `--restart` and
-`--keep-debug` permissions apply to that source read.
+it does not create an intermediate plaintext vault dump. That source read follows the shared lifecycle above; writing SSH files does
+not turn it into a Termius record write.
 
 ## File behavior
 
@@ -40,7 +45,8 @@ it does not create an intermediate plaintext vault dump. Usual `--restart` and
   secure empty staged files using the current Windows user's ACL **before**
   writing credentials, with one hidden PowerShell helper. WSL chmod is not used
   as a substitute for Windows ACLs. Existing personal-key contents are untouched.
-- An export lock avoids concurrent skill writers; remove a stale lock only after
+- `.termius-vault-export.lock` in the target avoids concurrent skill writers;
+  remove a stale lock only after
   confirming no writer remains. A failure can leave partial additions; backups
   are retained, not automatically restored. Symlink targets are refused; use the
   explicit real destination instead.
@@ -50,8 +56,7 @@ Passwords, known_hosts, groups, proxy/jump rules, certificates and unrelated
 Termius-specific settings are not migrated. Unsupported private-key formats
 such as PPK need separate conversion. Collision detection is conservative, not
 full OpenSSH conditional evaluation: complex existing Include/Match rules need
-agent assessment. Do not add repeated doctor/export/verification steps for a
-simple reverse export.
+agent assessment.
 
 ## Saved JSON and portable writer
 
@@ -61,9 +66,9 @@ simple reverse export.
 scripts/termius.sh export --keys
 
 # Existing authorized JSON: no Windows interop or Termius startup is needed.
-scripts/termius.sh export-ssh <target-.ssh-dir> --from <private-export.json> --keys
+scripts/termius.sh export-ssh "<target-.ssh-dir>" --from "<private-export.json>" --keys
 # Equivalent pure-Python entrypoint:
-python3 scripts/vault_to_ssh.py <target-.ssh-dir> --from <private-export.json> --keys
+python3 scripts/vault_to_ssh.py "<target-.ssh-dir>" --from "<private-export.json>" --keys
 ```
 
 A normal redacted `export` suffices for metadata-only migration. JSON from
@@ -83,8 +88,7 @@ this skill with the actual source/target environment:
   or WSL path does not become a Mac path merely by selecting `--platform macos`.
 - With an already authorized export available on the Mac, the portable writer
   can be tried with that Mac's own explicit target and `--platform macos`.
-  Assess local Python, OpenSSH, paths and permissions as needed; avoid a fixed
-  sequence of unnecessary tests.
+  Assess local Python, OpenSSH, paths and permissions as needed.
 - Reading that Mac's **own Termius vault** needs different glue (Keychain,
   `~/Library/Application Support/Termius`, native module and app/runtime paths).
   The shipped live driver is Windows-specific. Use an existing export or adapt

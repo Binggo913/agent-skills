@@ -11,58 +11,42 @@ metadata:
 
 # Termius Vault
 
-Operate only on the current user's local Termius vault. Run commands from this
-skill directory; stdout is JSON and diagnostics go to stderr.
+Operate on the current user's own data. Run helpers from this skill directory;
+stdout is JSON, diagnostics go to stderr. Read only the reference for the task.
 
-## Choose the shortest workflow
+## Select the operation
 
-```bash
-scripts/termius.sh export                         # JSON; secrets omitted
-scripts/termius.sh export-ssh ~/.ssh               # Termius → WSL/local SSH config
-scripts/termius.sh export-ssh /mnt/c/Users/<user>/.ssh --keys --platform windows
-scripts/termius.sh verify                         # host → identity → auth; passwords omitted
-scripts/termius.sh import ~/.ssh --dry-run         # compare with current vault; no record writes
-scripts/termius.sh import ~/.ssh /mnt/c/Users/<user>/.ssh  # merge sources in one lifecycle
-scripts/termius.sh push <spec.json>                # add missing hosts + referenced keys
-scripts/termius.sh batch <plan.json>               # multiple operations, one managed lifecycle
-```
+| Task | Entry command | Read when needed |
+|---|---|---|
+| OpenSSH → Termius | `scripts/termius.sh import <source>...` | [Import sources, filtering, parser limits](references/import.md) |
+| Termius → OpenSSH | `scripts/termius.sh export-ssh <target-.ssh-dir>` | [Reverse output, keys, saved JSON, macOS](references/export-ssh.md) |
+| JSON export or binding inspection | `scripts/termius.sh export` / `verify` | [Commands and lifecycle](references/commands.md) |
+| Spec-based additions or several requested operations | `scripts/termius.sh push <spec>` / `batch <plan>` | [Spec and batch formats](references/commands.md) |
+| Implementation/upgrade diagnosis only | Inspect affected source | [Vault format](references/termius-format.md) |
 
-- Specify the reverse destination explicitly; `~/.ssh` in WSL is not Windows
-  or Mac home. Private-key writes require `--keys`; passwords are never saved.
-- Run `doctor` only for setup or diagnosis, not before every operation.
-- For Termius writes, use the returned `verified` mappings instead of launching another
-  `verify`. They confirm local records, not successful SSH login or cloud sync.
-- Combine sources into one `import`. For multiple vault operations, use `batch`;
-  do not repeatedly invoke export/dry-run/push/verify in separate app cycles.
-- Use `--dry-run` when an actual vault comparison is needed. For source-only
-  preview without starting Termius, see [import guidance](references/import.md).
+## Essential boundaries
 
-## Safety and application state
+- The live vault bridge is Windows Termius via WSL. Reverse output can instead
+  consume existing JSON via `--from`. **macOS is theoretical, unverified**:
+  assess the machine using the reverse reference, not Windows-specific glue.
+- Specify the source/target machine and reverse destination. WSL's `~/.ssh` is
+  not Windows or Mac home. Reverse private-key writes need `--keys`; SSH output
+  does not store exported login passwords or key passphrases.
+- Closing Termius/active sessions needs permission before `--restart`. Default
+  reads restore initial app state or reuse existing CDP. `--keep-debug` is an
+  explicit opt-in: it leaves local vault access exposed through CDP.
+- Termius writes require a stopped-database backup and only add missing labels;
+  existing key labels are not fingerprint comparisons. Reverse writes preserve
+  existing aliases/key contents and back up config changes. Do not silently
+  overwrite conflicts, discard backups, or assume automatic rollback.
+- Raw `export --keys` exposes linked keys; `export --secrets` also exposes
+  passwords/passphrases. Require authorization; do not echo/commit secrets.
+  Termius itself may sync online even though the helpers use local IPC.
 
-- Do not add `--restart` without permission to close Termius and its active SSH
-  sessions. Reads reuse an existing CDP instance; otherwise a running app is
-  left alone unless restart is authorized.
-- Termius writes require a successful stopped-database backup. Add-only matching uses
-  labels, not key fingerprints: existing hosts/keys are not updated or deleted.
-- By default, close only the debugging instance managed by this task. Read-only
-  tasks restore the initial open/closed state. Termius writes start normal mode once at
-  the end to allow refresh/sync. Startup may still show the Termius window.
-- `--keep-debug` is explicit opt-in for cross-command reuse, not a default fix
-  for flashing: CDP permits local vault access. Close/restart normally afterward.
-- Reverse export preserves existing aliases/key contents and backs up configs
-  before adding an Include. It does not overwrite conflicts or copy login passwords.
-- Raw `export --keys` includes linked keys but no login passwords or passphrases;
-  `export --secrets` also includes passwords/passphrases. Do not echo/commit credential JSON.
-- macOS is **theoretical, not verified**: assess the actual machine and read the
-  reverse reference. Do not assume Windows vault/keychain glue works on a Mac.
-- Scripts use local IPC; Termius itself may sync data online after restart.
+## Keep the workflow short
 
-## Read only the reference needed
-
-- [Commands, batch schema, lifecycle, recovery](references/commands.md): advanced
-  options, JSON/YAML specs, restart behavior, or troubleshooting.
-- [Reverse export and macOS assessment](references/export-ssh.md): destinations,
-  private-key authorization, ACLs, saved JSON, and theoretical Mac workflows.
-- [SSH-config import](references/import.md): filters, path handling, parser limits.
-- [Vault format](references/termius-format.md): implementation/upgrade diagnosis
-  only; not needed for ordinary export, import, or verification.
+Merge SSH sources into one `import`; use `batch` for multiple actual operations.
+`doctor` and `--dry-run` are for relevant setup/diagnosis/comparison, not a fixed
+checklist. Termius writes already return `verified` mappings; do not relaunch a
+separate verification without a reason. Local results do not establish native
+UI acceptance, cloud sync, or successful SSH login.
