@@ -15,7 +15,8 @@
 
 ## 安装
 
-Pi、Codex、Amp、Droid 会递归扫描，克隆整个仓库即可；Claude Code 只扫描一层，需要逐个符号链接。
+将仓库克隆到 agent 配置的技能目录。以下是常见布局，发现规则和嵌套目录支持
+取决于 agent 及版本；若无法发现嵌套技能，单独链接具体的 skill 目录。
 
 ```bash
 REPO=https://github.com/Binggo913/agent-skills.git
@@ -31,13 +32,27 @@ ln -sfn ~/.pi/agent/skills/agent-skills/termius-vault ~/.claude/skills/termius-v
 
 显式调用：Pi 用 `/skill:<name>`，Claude Code 用 `/<name>`，Codex 用 `$<name>`。
 
-## 激活方式
+## 激活方式与上下文开销
 
-每个 skill 都设置了 `disable-model-invocation: true`：仅用户可调用，且永远不会加入模型上下文，因此**已安装但未使用时零 token 开销**。若要允许模型自动选择，删除 frontmatter 中该行即可（会产生少量每请求 token）。
+保留 `disable-model-invocation: true`，在支持此设置的 agent 中使用显式调用。
+不同 agent 的发现和调用规则不同，不能笼统承诺“未使用时零 token”。
+技能入口只保留决策所需的信息；命令/格式、导入限制与实现说明分开放入参考文件，
+仅在对应任务需要时读取。
 
-## 兼容性
+## 兼容性与操作流程
 
-`termius-vault` 依赖 Termius 桌面版，目前**在 Windows 上实现并测试通过，由 WSL/Linux 驱动**（凭据管理器、`cmd.exe`、`wslpath`）。其 SSH config 解析部分可跨平台；macOS 理论上可行（Termius 在 mac 上同为 Electron），但尚未实现与测试。其它技能可能不同 —— 见各自的 `SKILL.md`。
+`termius-vault` 需要 Windows Termius 桌面版、WSL 互操作、Python 3、
+`cmd.exe` 和 `wslpath`。使用 Termius 自带 Electron/Node 运行时；YAML 输入
+额外需要 PyYAML。SSH config 解析可跨平台，macOS 保险库访问尚未实现。
+
+多个 SSH 来源合并为一次 `import`；多个保险库操作用 `batch`。写入直接返回本地
+关联校验，避免为校验再启动一次。辅助程序隐藏控制台窗口，读取恢复原先的开/关
+状态，写入仅在流程最后刷新一次。Termius 首次启动仍可能显示窗口，不能承诺无界面。
+`--restart` 需获准关闭现有会话；`--keep-debug` 必须显式选择，因为 CDP 允许本机
+进程访问保险库。
+
+详见[技能入口](termius-vault/SKILL.md)与
+[命令和生命周期说明](termius-vault/references/commands.md)。
 
 ## 许可证
 

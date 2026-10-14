@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""Convert an OpenSSH client config into a `termius-vault` desired-hosts spec.
+"""Prepare merged, add-only host specs from one or more SSH config files/directories.
 
-Accepts either a config file or an `.ssh` directory. Handles `Include`,
-multiple/negated `Host` patterns, first-value-wins option resolution, and
-resolves `IdentityFile` keys (including Windows paths such as `D:/.ssh/...`,
-which are mapped to `/mnt/d/...` when running under WSL).
-
-Output (stdout) is the same JSON document `termius.sh push` consumes, with
-`private_key_file` entries that `prepare_desired.py` inlines later.
-
-Usage:
-    sshconfig_to_spec.py <config-or-ssh-dir>
+Extracts concrete aliases and basic HostName/User/Port/IdentityFile options.
+This is not ssh -G: complex Include/Match/proxy/token semantics are not migrated.
+Windows paths are mapped to WSL mounts. Output references key files; it never
+reads private-key contents. See references/import.md for limits.
 """
 import fnmatch
 import glob
@@ -105,33 +99,8 @@ def resolve(path, home, ssh_dir):
     return os.path.normpath(path)
 
 
-def main():
-    ap = argparse.ArgumentParser(
-        description="Convert an OpenSSH config into a termius-vault desired-hosts spec."
-    )
-    ap.add_argument("source", help="SSH config file or .ssh directory")
-    ap.add_argument(
-        "--only", action="append", default=[], metavar="GLOB",
-        help="only include host aliases matching GLOB (repeatable / comma-separated)",
-    )
-    ap.add_argument(
-        "--exclude", action="append", default=[], metavar="GLOB",
-        help="skip host aliases matching GLOB (repeatable / comma-separated)",
-    )
-    args = ap.parse_args()
-
-    def globs(values):
-        return [p for chunk in values for p in chunk.split(",") if p]
-
-    only = globs(args.only)
-    exclude = globs(args.exclude)
-
-    def keep(label):
-        if only and not any(fnmatch.fnmatch(label, p) for p in only):
-            return False
-        return not any(fnmatch.fnmatch(label, p) for p in exclude)
-
-    src = to_local(args.source)
+def source_to_spec(source, keep=lambda label: True):
+    src = to_local(source)
     cfg = os.path.join(src, "config") if os.path.isdir(src) else src
     if not os.path.isfile(cfg):
         sys.exit(f"no SSH config found at {cfg}")
@@ -177,11 +146,61 @@ def main():
                 sys.stderr.write(f"warning: key file missing: {kpath}\n")
         hosts.append(entry)
 
-    # Drop keys that no kept host references.
-    used = {h["key"] for h in hosts if h.get("key")}
-    keys = {name: keys[name] for name in keys if name in used}
+    return {"keys": keys, "hosts": hosts}
 
-    json.dump({"keys": keys, "hosts": hosts}, sys.stdout, indent=2)
+
+def merge_specs(specs):
+    """First source wins duplicate aliases; share keys only by resolved file path."""
+    hosts, keys, paths, labels = [], {}, {}, set()
+    for spec in specs:
+        for host in spec["hosts"]:
+            if host["label"] in labels:
+                continue
+            labels.add(host["label"])
+            if host.get("key"):
+                original = host["key"]
+                key = spec["keys"][original]
+                filename = os.path.realpath(key["private_key_file"])
+                if filename not in paths:
+                    name, n = original, 1
+                    while name in keys:
+                        n += 1
+                        name = f"{original}-{n}"
+                    paths[filename] = name
+                    keys[name] = key
+                host = {**host, "key": paths[filename]}
+            hosts.append(host)
+    return {"keys": keys, "hosts": hosts}
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Convert an OpenSSH config into a termius-vault desired-hosts spec."
+    )
+    ap.add_argument("sources", nargs="+", help="SSH config file or .ssh directory")
+    ap.add_argument(
+        "--only", action="append", default=[], metavar="GLOB",
+        help="only include host aliases matching GLOB (repeatable / comma-separated)",
+    )
+    ap.add_argument(
+        "--exclude", action="append", default=[], metavar="GLOB",
+        help="skip host aliases matching GLOB (repeatable / comma-separated)",
+    )
+    args = ap.parse_args()
+
+    def globs(values):
+        return [p for chunk in values for p in chunk.split(",") if p]
+
+    only = globs(args.only)
+    exclude = globs(args.exclude)
+
+    def keep(label):
+        if only and not any(fnmatch.fnmatch(label, p) for p in only):
+            return False
+        return not any(fnmatch.fnmatch(label, p) for p in exclude)
+
+    spec = merge_specs(source_to_spec(source, keep) for source in args.sources)
+    json.dump(spec, sys.stdout, indent=2)
     sys.stdout.write("\n")
 
 

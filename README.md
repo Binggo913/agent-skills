@@ -16,8 +16,9 @@ machine-specific paths.
 
 ## Install
 
-Pi, Codex, Amp, and Droid scan recursively, so clone the whole repo. Claude Code
-scans one level deep, so symlink individual skills.
+Clone into your agent's configured skill directory. The examples below show
+common layouts; discovery and nested-directory support vary by agent/version.
+If your agent does not discover nested skills, link the individual skill folder.
 
 ```bash
 REPO=https://github.com/Binggo913/agent-skills.git
@@ -33,19 +34,30 @@ ln -sfn ~/.pi/agent/skills/agent-skills/termius-vault ~/.claude/skills/termius-v
 
 Invoke explicitly: Pi `/skill:<name>`, Claude Code `/<name>`, Codex `$<name>`.
 
-## Activation
+## Activation and context size
 
-Every skill sets `disable-model-invocation: true`: it is user-invocable only and
-is never added to the model context, so installed-but-unused skills cost **no
-tokens**. Remove that line from a skill's frontmatter to allow automatic model
-selection instead (a small token cost per request).
+Skills retain `disable-model-invocation: true` for explicit invocation where the
+agent supports it. Invocation and discovery policies differ by agent; this is
+not a universal guarantee of zero token overhead. The entrypoint stays short:
+command/schema details, import caveats, and implementation notes are separate
+references, loaded only for the relevant task.
 
-## Compatibility
+## Compatibility and workflow
 
-`termius-vault` needs the Termius desktop app and is **implemented and tested on
-Windows, driven from WSL/Linux** (Credential Manager, `cmd.exe`, `wslpath`). Its
-SSH-config parsing is portable; macOS is plausible (Termius is Electron there)
-but unimplemented and untested. Other skills may differ — see each `SKILL.md`.
+`termius-vault` requires Windows Termius desktop, WSL interop, Python 3,
+`cmd.exe`, and `wslpath`. It uses Termius's bundled Electron/Node runtime; YAML
+specs additionally require PyYAML. SSH-config parsing is portable; macOS vault
+access is not implemented.
+
+Merge SSH sources into one `import`, or use `batch` for several vault operations.
+Writes return local verification, avoiding an extra GUI cycle. Helpers hide
+console windows; reads restore the original open/closed state and writes refresh
+once at the end. Termius itself may still show a startup window; this is not
+headless access. `--restart` requires permission to close active sessions;
+`--keep-debug` is opt-in because CDP exposes vault access locally.
+
+See [the skill](termius-vault/SKILL.md) and
+[commands/lifecycle](termius-vault/references/commands.md).
 
 ## License
 

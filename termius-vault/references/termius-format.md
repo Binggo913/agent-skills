@@ -136,6 +136,14 @@ Encryption rules:
 `content` plaintext:
 `{"passphrase":…,"private_key":…,"public_key":…,"label":…,"version":1}`
 
+## Application access
+
+The driver reads the local key from Windows Credential Manager, then runs
+Termius's native crypto module in its own bundled Electron/Node runtime. Vault
+expressions execute in the app's background renderer over loopback CDP; no
+separate Windows Node/npm install or LevelDB parser is required. These are
+reverse-engineered interfaces and may change after upgrades.
+
 ## Sync semantics
 
 `status` values include `SYNCHRONIZED`, `WRITING`, `UPLOADING`,
@@ -150,12 +158,15 @@ them to `SYNCHRONIZED`. Practically, that means:
 2. Restart Termius.
 3. It syncs and the host appears in the UI with a server id.
 
-Adding records while the app is closed and then starting it is the most reliable
-order.
+The CDP write itself requires the app to be running. The controller stops it
+for a physical backup, starts one debugging instance for the entire task, and
+restarts normally only once after all additions. See [commands.md](commands.md)
+for lifecycle/permission details. Local verification does not confirm cloud
+sync or UI visibility; multi-database writes are not atomic.
 
 ## Reading through CDP
 
-Launching Termius with `--remote-debugging-port=<port> --remote-allow-origins=*`
+Launching Termius with `--remote-debugging-address=127.0.0.1 --remote-debugging-port=<port>`
 exposes a `page` target whose URL contains `background-process`. Evaluating JS
 in that target gives access to `indexedDB` (same origin as the vault) and to
 `require` (Node integration), so both the DB and the native crypto module can be

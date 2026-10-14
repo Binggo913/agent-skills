@@ -44,15 +44,56 @@ def read_key(entry):
     return entry
 
 
-def main():
-    if len(sys.argv) != 3:
-        sys.exit(__doc__)
-    spec = load_spec(sys.argv[1])
-    for name, entry in (spec.get("keys") or {}).items():
+def expand_spec(spec):
+    if not isinstance(spec, dict) or not isinstance(spec.get("hosts"), list):
+        raise ValueError("spec requires a hosts array")
+    spec.setdefault("keys", {})
+    if not isinstance(spec["keys"], dict):
+        raise ValueError("spec keys must be an object")
+    for name, entry in spec["keys"].items():
         spec["keys"][name] = read_key(dict(entry))
-    with open(sys.argv[2], "w", encoding="utf-8") as fh:
-        json.dump(spec, fh)
-    os.chmod(sys.argv[2], 0o600)
+    return spec
+
+
+def prepare_batch(source):
+    plan = load_spec(source)
+    if not isinstance(plan, dict) or not isinstance(plan.get("operations"), list):
+        raise ValueError("batch requires an operations array")
+    base = os.path.dirname(os.path.abspath(source))
+    cache = {}
+    for operation in plan["operations"]:
+        if not isinstance(operation, dict) or operation.get("command") not in ("export", "verify", "push"):
+            raise ValueError("batch supports export, verify and push")
+        allowed = {"command", "secrets"} if operation["command"] == "export" else (
+            {"command", "desired", "dryRun"} if operation["command"] == "push" else {"command"}
+        )
+        if set(operation) - allowed:
+            raise ValueError("unsupported batch operation field")
+        for flag in ("secrets", "dryRun"):
+            if flag in operation and not isinstance(operation[flag], bool):
+                raise ValueError(f"{flag} must be boolean")
+        if operation["command"] == "push":
+            spec = operation.get("desired")
+            if isinstance(spec, str):
+                path = os.path.realpath(os.path.join(base, os.path.expanduser(spec)))
+                if path not in cache:
+                    cache[path] = expand_spec(load_spec(path))
+                operation["desired"] = cache[path]
+            else:
+                operation["desired"] = expand_spec(spec)
+    return plan
+
+
+def main():
+    batch = len(sys.argv) > 1 and sys.argv[1] == "--batch"
+    args = sys.argv[2:] if batch else sys.argv[1:]
+    if len(args) != 2:
+        sys.exit("Usage: prepare_desired.py [--batch] <source.json|yaml> <output.json>")
+    output = prepare_batch(args[0]) if batch else expand_spec(load_spec(args[0]))
+    # Restrict before writing, rather than chmod after secrets already exist.
+    fd = os.open(args[1], os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(output, fh)
 
 
 if __name__ == "__main__":
