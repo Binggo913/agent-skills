@@ -10,7 +10,7 @@
 #   termius.sh export [--secrets] [--restart] [--keep-debug]
 #   termius.sh verify [--restart] [--keep-debug]
 #   termius.sh push <spec.json|yaml> [--dry-run] [--restart]
-#   termius.sh import <ssh-config|.ssh-dir> [--dry-run] [--restart]
+#   termius.sh import <ssh-config|.ssh-dir> [--only GLOB] [--exclude GLOB] [--dry-run] [--restart]
 #
 # Environment:
 #   TERMIUS_EXE          full Windows path to Termius.exe (optional)
@@ -73,16 +73,19 @@ case "$cmd" in
   import)
     src=""
     rest=()
+    pyf=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --dry-run|--restart|--secrets|--keep-debug) rest+=("$1"); shift ;;
+        --only|--exclude) pyf+=("$1" "$2"); shift 2 ;;
+        --only=*|--exclude=*) pyf+=("$1"); shift ;;
         -*) die "unknown flag: $1" ;;
         *) if [[ -z "$src" ]]; then src="$1"; else die "unexpected arg: $1"; fi; shift ;;
       esac
     done
     [[ -n "$src" ]] || die "import requires an SSH config file or .ssh directory"
     spec_unix="$UNIX_TEMP/termius-sshspex-$$.json"
-    python3 "$SCRIPT_DIR/sshconfig_to_spec.py" "$src" > "$spec_unix"
+    python3 "$SCRIPT_DIR/sshconfig_to_spec.py" "${pyf[@]}" "$src" > "$spec_unix"
     args=("push" "--desired" "$(expand_desired "$spec_unix")" "${rest[@]}")
     ;;
   export)
@@ -102,7 +105,7 @@ Usage:
   termius.sh export [--secrets] [--restart] [--keep-debug]
   termius.sh verify [--restart] [--keep-debug]
   termius.sh push <spec.json|yaml> [--dry-run] [--restart]
-  termius.sh import <ssh-config|.ssh-dir> [--dry-run] [--restart]
+  termius.sh import <ssh-config|.ssh-dir> [--only GLOB] [--exclude GLOB] [--dry-run] [--restart]
 
 Env:
   TERMIUS_EXE       full Windows path to Termius.exe

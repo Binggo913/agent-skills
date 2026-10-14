@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import argparse
 
 WIN_PATH = re.compile(r"^([A-Za-z]):[\\/](.*)$")
 
@@ -105,9 +106,32 @@ def resolve(path, home, ssh_dir):
 
 
 def main():
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    src = to_local(sys.argv[1])
+    ap = argparse.ArgumentParser(
+        description="Convert an OpenSSH config into a termius-vault desired-hosts spec."
+    )
+    ap.add_argument("source", help="SSH config file or .ssh directory")
+    ap.add_argument(
+        "--only", action="append", default=[], metavar="GLOB",
+        help="only include host aliases matching GLOB (repeatable / comma-separated)",
+    )
+    ap.add_argument(
+        "--exclude", action="append", default=[], metavar="GLOB",
+        help="skip host aliases matching GLOB (repeatable / comma-separated)",
+    )
+    args = ap.parse_args()
+
+    def globs(values):
+        return [p for chunk in values for p in chunk.split(",") if p]
+
+    only = globs(args.only)
+    exclude = globs(args.exclude)
+
+    def keep(label):
+        if only and not any(fnmatch.fnmatch(label, p) for p in only):
+            return False
+        return not any(fnmatch.fnmatch(label, p) for p in exclude)
+
+    src = to_local(args.source)
     cfg = os.path.join(src, "config") if os.path.isdir(src) else src
     if not os.path.isfile(cfg):
         sys.exit(f"no SSH config found at {cfg}")
@@ -126,6 +150,8 @@ def main():
     key_paths = {}
     hosts = []
     for h in names:
+        if not keep(h):
+            continue
         o = effective(blocks, h)
         entry = {
             "label": h,
@@ -141,7 +167,7 @@ def main():
                 base = os.path.basename(kpath)
                 name = base
                 n = 1
-                while name in keys and key_paths.get(keys[name]["private_key_file"]) != kpath:
+                while name in keys:
                     n += 1
                     name = f"{base}-{n}"
                 key_paths[kpath] = name
@@ -150,6 +176,10 @@ def main():
             if not os.path.exists(kpath):
                 sys.stderr.write(f"warning: key file missing: {kpath}\n")
         hosts.append(entry)
+
+    # Drop keys that no kept host references.
+    used = {h["key"] for h in hosts if h.get("key")}
+    keys = {name: keys[name] for name in keys if name in used}
 
     json.dump({"keys": keys, "hosts": hosts}, sys.stdout, indent=2)
     sys.stdout.write("\n")

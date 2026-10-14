@@ -102,6 +102,16 @@ scripts/termius.sh import ~/.ssh --dry-run
 scripts/termius.sh import /mnt/c/Users/<user>/.ssh
 ```
 
+Filter which aliases get imported with glob patterns (`fnmatch`), repeatable or
+comma-separated. Keys are imported only when a kept host references them, so you
+never add keys for hosts you skipped:
+
+```bash
+scripts/termius.sh import ~/.ssh --only '180*' --only '140-*'
+scripts/termius.sh import ~/.ssh --only 'prod-*' --exclude 'prod-legacy'
+scripts/termius.sh import /mnt/c/Users/<user>/.ssh --only 'build-*,deploy-*'
+```
+
 `import` reuses the `push` write path, so it is **only as platform-portable as
 Termius write access is** (see Platforms). The parsing itself is pure Python and
 runs anywhere.
