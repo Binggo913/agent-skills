@@ -75,11 +75,23 @@ function launchTermius(exe, dbg) {
   const args = dbg ? ['--remote-debugging-address=127.0.0.1', '--remote-debugging-port=' + CDP_PORT] : [];
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
+  // Never pass windowsHide for Termius.exe. It makes libuv set
+  // STARTUPINFO(dwFlags |= STARTF_USESHOWWINDOW, wShowWindow = SW_HIDE), Windows
+  // then substitutes SW_HIDE for the process' first ShowWindow call, so Chromium
+  // creates the main window invisible. The app still owns the single-instance
+  // lock, so later manual launches only signal the hidden instance and no window
+  // ever appears. Termius.exe is a GUI binary, so it creates no console window
+  // that would need hiding.
   return new Promise((resolve, reject) => {
-    const child = spawn(exe, args, { detached: true, stdio: 'ignore', env, windowsHide: true });
+    const child = spawn(exe, args, guiSpawnOptions(env));
     child.once('error', reject);
     child.once('spawn', () => { child.unref(); resolve(child.pid); });
   });
+}
+// Exported so tests can assert the GUI launch never requests a hidden startup
+// window; see launchTermius for why `windowsHide` is forbidden here.
+function guiSpawnOptions(env) {
+  return { detached: true, stdio: 'ignore', env };
 }
 
 // ---------------------------------------------------------------- cdp
@@ -494,7 +506,7 @@ async function main(argv = process.argv.slice(2)) {
   } finally { fs.rmdirSync(lock); }
 }
 
-module.exports = { Conn, VaultSession, exportExpr, verifyExpr, pushExpr, validateDesired, planPush, runOperations, parseArgs, operationsFor };
+module.exports = { Conn, VaultSession, exportExpr, verifyExpr, pushExpr, validateDesired, planPush, runOperations, parseArgs, operationsFor, guiSpawnOptions };
 if (require.main === module) main().catch((error) => {
   console.error('ERROR: ' + error.message); process.exitCode = 1;
 });

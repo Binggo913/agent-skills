@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { runOperations, verifyExpr, exportExpr, pushExpr, operationsFor } = require('../scripts/win/termius-ctl.js');
+const { runOperations, verifyExpr, exportExpr, pushExpr, operationsFor, guiSpawnOptions } = require('../scripts/win/termius-ctl.js');
 
 const target = { type: 'page', url: 'file:///app/background-process.html' };
 function fixture({ running = false, debug = false, backupError = false } = {}) {
@@ -147,4 +147,14 @@ test('real CLI operation shapes are valid for export, verify, push and batch', a
     await runOperations('Termius.exe', opts, operations, f.deps);
     assert.equal(f.state().running, false);
   }
+});
+
+test('gui launch never requests a hidden startup window', async () => {
+  // windowsHide makes libuv pass STARTUPINFO(SW_HIDE); Chromium then creates the
+  // main window invisible while holding the single-instance lock, and the user can
+  // no longer open Termius manually.
+  const opts = guiSpawnOptions({ ELECTRON_RUN_AS_NODE: undefined });
+  assert.equal('windowsHide' in opts, false);
+  assert.equal(opts.detached, true);
+  assert.equal(opts.stdio, 'ignore');
 });

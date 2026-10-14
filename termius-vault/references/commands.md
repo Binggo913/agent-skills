@@ -104,9 +104,10 @@ never starts Termius. Target-file behavior belongs to [export-ssh.md](export-ssh
 | Running with usable CDP | Reuse; do not stop it | No-op reuses; actual write requires `--restart` for backup, then one final normal startup |
 
 With `--keep-debug`, a successfully managed task instead leaves CDP running.
-The driver hides helper console windows, removes fixed post-kill delays, waits
-for a ready background target, and requests graceful CDP shutdown where
-supported before force-stop fallback. This reduces repeated flashes; it is
+The driver hides helper console windows (`powershell`, `tasklist`, `taskkill`)
+but launches `Termius.exe` itself without `windowsHide`, removes fixed post-kill
+delays, waits for a ready background target, and requests graceful CDP shutdown
+where supported before force-stop fallback. This reduces repeated flashes; it is
 **not a headless Termius implementation** and does not promise invisible GUI
 startup. Do not modify Termius's installed files to hide its windows.
 
@@ -144,6 +145,14 @@ not a cloud rollback.
   SSH sessions. Prefer one merged import/batch instead of repeated restarts.
 - CDP port occupied or background target not ready: do not attach to another
   browser. Wait for startup or choose a free `TERMIUS_CDP_PORT`.
+- Termius starts but has no visible window and cannot be opened manually
+  afterwards: the GUI was spawned with `windowsHide` (or another `SW_HIDE`
+  startup state), so Chromium's first window stayed hidden while the process kept
+  the single-instance lock; manual launches then only signal that hidden instance.
+  The in-process `ShowWindow` budget was already consumed by the hidden startup
+  state, so `ShowWindow(hwnd, SW_SHOWNORMAL)` on the existing window restores it
+  without touching vault data; otherwise terminate the hidden instance and start
+  Termius normally. Fix the launch options, not the database.
 - `.termius-vault-lock` exists under `%APPDATA%/Termius`: another operation may be
   active. Confirm no controller is running before manually removing a stale
   empty lock directory. Never remove it merely to force a concurrent run.
