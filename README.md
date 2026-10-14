@@ -32,18 +32,57 @@ request).
 
 ## Install
 
-Clone into a directory Pi scans, then `/reload` (or restart Pi):
+The skill format is the cross-agent [Agent Skills](https://agentskills.io/specification)
+standard, so the same repo works in Pi, Claude Code, Codex CLI, Amp, and Droid.
+Install per agent:
+
+| Agent | Install location | Invoke |
+|---|---|---|
+| **Pi** | `git clone <repo> ~/.pi/agent/skills/agent-skills` (recursive) | `/skill:termius-vault` |
+| **Claude Code** | symlink each skill under `~/.claude/skills/` (one level deep only) | `/termius-vault` |
+| **Codex CLI** | `git clone <repo> ~/.codex/skills/agent-skills` (recursive) | `$termius-vault` |
+| **Amp** | `git clone <repo> ~/.config/amp/tools/agent-skills` | — |
+| **Droid** | `git clone <repo> ~/.factory/skills/agent-skills` | — |
 
 ```bash
-# user-level, portable Agent Skills location
-git clone https://github.com/Binggo913/agent-skills.git ~/.agents/skills/agent-skills
+REPO=https://github.com/Binggo913/agent-skills.git
 
-# or, if you use Pi's own skills dir
-git clone https://github.com/Binggo913/agent-skills.git ~/.pi/agent/skills/agent-skills
+# Pi
+git clone "$REPO" ~/.pi/agent/skills/agent-skills
+
+# Codex CLI
+git clone "$REPO" ~/.codex/skills/agent-skills
+
+# Claude Code (scans only one level deep; symlink individual skills)
+mkdir -p ~/.claude/skills
+ln -sfn ~/.pi/agent/skills/agent-skills/termius-vault ~/.claude/skills/termius-vault
 ```
 
-Pi discovers directories containing `SKILL.md` recursively, so every skill in
-this repository becomes available, e.g. `/skill:termius-vault`.
+### Explicit-invocation only (no idle token cost)
+
+Every skill here sets `disable-model-invocation: true`. This is honored by Pi,
+Claude Code, and Codex CLI:
+
+- **Pi** — the skill is excluded from the system prompt entirely.
+- **Codex CLI** — the skill is not added to the model context; it stays
+  available only when explicitly invoked as `$skill-name`.
+- **Claude Code** — the model cannot invoke it via the Skill tool; only the
+  user can run its slash command.
+
+So an installed-but-unused skill adds **no tokens** to a request. Invoke it only
+when you want it, then it loads its `SKILL.md` on demand.
+
+To let a given agent select a skill automatically from a task description
+instead, remove `disable-model-invocation: true` from that skill's frontmatter
+(it will then be advertised to the model and cost a small number of tokens per
+request).
+
+### Compatibility
+
+Skills here may declare a `compatibility` field. `termius-vault` needs a
+**Windows host running the Termius desktop app, driven from WSL/Linux** — it
+uses `cmd.exe`, `wslpath`, and Termius' bundled Electron runtime. Other skills
+may have different requirements; check each `SKILL.md`.
 
 ## Layout
 
