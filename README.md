@@ -1,5 +1,7 @@
 # agent-skills
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Cross-agent [Agent Skills](https://agentskills.io/specification) for
 [Pi](https://github.com/badlogic/pi-mono), Claude Code, Codex CLI, Amp, and
 Droid. Each top-level directory is a skill (`SKILL.md` plus optional `scripts/`
