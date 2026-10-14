@@ -11,6 +11,7 @@ import glob
 import json
 import os
 import re
+import shlex
 import sys
 import argparse
 
@@ -38,10 +39,11 @@ def split_line(line):
     return m.group(1).lower(), val
 
 
-def parse_config(path, _seen=None):
+def parse_config(path, _seen=None, _root=None):
     blocks = [{"patterns": [], "opts": {}}]  # leading global block
     cur = blocks[0]
-    _seen = _seen or set()
+    _seen = set() if _seen is None else _seen
+    _root = _root or os.path.dirname(os.path.abspath(path))
     real = os.path.realpath(path)
     if real in _seen:
         return blocks
@@ -56,11 +58,21 @@ def parse_config(path, _seen=None):
                 cur = {"patterns": val.split(), "opts": {}}
                 blocks.append(cur)
             elif key == "include":
-                for inc in val.split():
-                    for p in glob.glob(to_local(os.path.expanduser(inc))):
+                for inc in shlex.split(val.replace("\\", "/"), comments=True):
+                    inc = to_local(inc)
+                    if inc.startswith("~"):
+                        inc = os.path.join(os.path.dirname(_root), inc[1:].lstrip("/"))
+                    elif not os.path.isabs(inc):
+                        inc = os.path.join(_root, inc)
+                    for p in sorted(glob.glob(inc)):
                         if os.path.isfile(p):
-                            blocks.extend(parse_config(p, _seen))
+                            blocks.extend(parse_config(p, _seen, _root))
             else:
+                if key in {"hostname", "user", "port", "identityfile"} and val[:1] in {'"', "'"}:
+                    words = shlex.split(val, comments=True)
+                    if len(words) != 1:
+                        raise ValueError("Unsupported scalar SSH option value")
+                    val = words[0]
                 cur["opts"].setdefault(key, []).append(val)
     return blocks
 

@@ -64,12 +64,12 @@ def prepare_batch(source):
     for operation in plan["operations"]:
         if not isinstance(operation, dict) or operation.get("command") not in ("export", "verify", "push"):
             raise ValueError("batch supports export, verify and push")
-        allowed = {"command", "secrets"} if operation["command"] == "export" else (
+        allowed = {"command", "secrets", "keys"} if operation["command"] == "export" else (
             {"command", "desired", "dryRun"} if operation["command"] == "push" else {"command"}
         )
         if set(operation) - allowed:
             raise ValueError("unsupported batch operation field")
-        for flag in ("secrets", "dryRun"):
+        for flag in ("secrets", "dryRun", "keys"):
             if flag in operation and not isinstance(operation[flag], bool):
                 raise ValueError(f"{flag} must be boolean")
         if operation["command"] == "push":

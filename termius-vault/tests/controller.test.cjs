@@ -124,12 +124,19 @@ test('backup failure aborts all writes and restores original running state', asy
 test('verify and ordinary export redact credentials; explicit secrets export retains them', async () => {
   const f = fixture();
   await vm.runInNewContext(pushExpr('key', '/native', desired()), f.context);
+  await vm.runInNewContext(pushExpr('key', '/native', { keys: { work: { private_key: 'PRIVATE-TEST-KEY', passphrase: 'PRIVATE-TEST-PASSPHRASE' } }, hosts: [{ label: 'key-host', address: '192.0.2.2', key: 'work' }] }), f.context);
+  const keysOnly = await vm.runInNewContext(exportExpr('key', '/native', false, true), f.context);
   const verification = await vm.runInNewContext(verifyExpr('key', '/native'), f.context);
   const redacted = await vm.runInNewContext(exportExpr('key', '/native', false), f.context);
   const full = await vm.runInNewContext(exportExpr('key', '/native', true), f.context);
   assert.ok(!verification.includes(secret));
   assert.ok(!redacted.includes(secret));
   assert.ok(full.includes(secret));
+  assert.ok(keysOnly.includes('PRIVATE-TEST-KEY'));
+  assert.ok(!keysOnly.includes(secret));
+  assert.ok(!keysOnly.includes('PRIVATE-TEST-PASSPHRASE'));
+  assert.ok(full.includes('PRIVATE-TEST-PASSPHRASE'));
+  assert.ok(!redacted.includes('PRIVATE-TEST-KEY'));
 });
 
 test('real CLI operation shapes are valid for export, verify, push and batch', async () => {

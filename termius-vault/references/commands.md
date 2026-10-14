@@ -5,7 +5,8 @@
 | Command | Result | Record writes |
 |---|---|---|
 | `doctor` | Runtime, crypto, credential and process checks; no GUI launch | No |
-| `export` | Hosts and known_hosts; `--secrets` includes host-linked credentials | No |
+| `export` | JSON hosts/known_hosts; `--keys` adds linked keys, `--secrets` also passwords | No |
+| `export-ssh <target>` | OpenSSH configs; `--keys` permits private-key files | Target .ssh only |
 | `verify` | Host/address/port/user/auth mapping; never prints passwords | No |
 | `push <spec>` | Inserted entries, verified local mappings, backup path | Add-only |
 | `import <source>...` | Same result as push; merges sources before app access | Add-only |
@@ -23,12 +24,15 @@ local processes can access the vault through CDP. Close it or restart Termius
 normally when done. A failed managed operation attempts normal cleanup even
 when this flag was supplied.
 
-`--secrets` is accepted only by export. Export includes credentials linked to
+`--secrets` and raw `--keys` are accepted by export; reverse export also accepts
+`--keys` as private-key write authorization. Export includes credentials linked to
 hosts, not a complete inventory of unreferenced keys. Treat the output as
 sensitive. JSON is dependency-free; YAML input additionally requires PyYAML.
 
 Environment: `TERMIUS_EXE` overrides the Windows executable path;
 `TERMIUS_CDP_PORT` overrides the loopback debugging port (default 9222).
+
+For reverse migration, read [export-ssh.md](export-ssh.md), not the push schema.
 
 ## Push spec
 
@@ -70,7 +74,7 @@ examples. Do not substitute real credentials into tracked examples.
 
 Run `scripts/termius.sh batch <plan.json>`, adding `--restart` only when closing
 existing sessions has been authorized. Supported operations: `export`,
-`verify`, `push`. An export operation can explicitly set `"secrets": true`;
+`verify`, `push`. An export operation can explicitly set `"keys": true` or `"secrets": true`;
 a push can set `"dryRun": true`. A desired spec may be inline or a file path
 relative to the plan. SSH imports instead accept multiple sources directly;
 there is no need to create one batch operation per source.

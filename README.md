@@ -12,7 +12,7 @@ machine-specific paths.
 
 | Skill | What it does |
 |---|---|
-| [`termius-vault`](termius-vault/) | Read, export, verify, or add hosts/keys/passwords in the Termius desktop SSH client; import hosts from an OpenSSH config (Windows host or WSL `~/.ssh`). |
+| [`termius-vault`](termius-vault/) | Bidirectional Termius ↔ OpenSSH host/key migration; inspect/export vaults and verify bindings. Windows/WSL live access; macOS theoretical, machine-dependent. |
 
 ## Install
 
@@ -47,17 +47,22 @@ references, loaded only for the relevant task.
 `termius-vault` requires Windows Termius desktop, WSL interop, Python 3,
 `cmd.exe`, and `wslpath`. It uses Termius's bundled Electron/Node runtime; YAML
 specs additionally require PyYAML. SSH-config parsing is portable; macOS vault
-access is not implemented.
+access is theoretical and requires assessment on the actual machine; the shipped
+live-vault bridge is Windows-specific.
 
 Merge SSH sources into one `import`, or use `batch` for several vault operations.
-Writes return local verification, avoiding an extra GUI cycle. Helpers hide
+Termius writes return local verification, avoiding an extra GUI cycle. Reverse
+`export-ssh` requires an explicit destination, preserves existing aliases and
+key contents, and writes private keys only with `--keys`; passwords stay out of
+SSH files. Helpers hide
 console windows; reads restore the original open/closed state and writes refresh
-once at the end. Termius itself may still show a startup window; this is not
+once at the end of Termius writes. Termius itself may still show a startup window; this is not
 headless access. `--restart` requires permission to close active sessions;
 `--keep-debug` is opt-in because CDP exposes vault access locally.
 
 See [the skill](termius-vault/SKILL.md) and
-[commands/lifecycle](termius-vault/references/commands.md).
+[commands/lifecycle](termius-vault/references/commands.md), and
+[reverse/macOS guidance](termius-vault/references/export-ssh.md).
 
 ## License
 

@@ -57,5 +57,54 @@ class PreparationTests(unittest.TestCase):
                     self.assertEqual(list(temp.iterdir()), [])
 
 
+    def test_reverse_export_is_add_only_idempotent_and_roundtrips_basic_hosts(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = Path(root)
+            target = base / '.ssh'
+            target.mkdir(mode=0o700)
+            original = 'Host existing\n HostName 192.0.2.99\n\nHost *\n ServerAliveInterval 30\n'
+            (target / 'config').write_text(original)
+            data = {'hosts': [
+                {'label': 'existing', 'address': '192.0.2.1'},
+                {'label': 'new host', 'address': '192.0.2.2', 'user': 'alice', 'port': 2201, 'auth': 'key',
+                 'private_key': '-----BEGIN OPENSSH PRIVATE KEY-----\nSYNTHETIC\n-----END OPENSSH PRIVATE KEY-----\n',
+                 'password': 'NEVER-SAVE-PASSWORD', 'passphrase': 'NEVER-SAVE-PASSPHRASE'},
+            ]}
+            source = base / 'export.json'
+            source.write_text(json.dumps(data))
+            command = ['bash', str(SCRIPTS / 'termius.sh'), 'export-ssh', str(target), '--from', str(source), '--keys']
+            first = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            result = json.loads(first.stdout)
+            self.assertEqual(result['added'], ['new_host'])
+            self.assertEqual(result['skipped'], ['existing'])
+            self.assertTrue((target / 'config').read_text().endswith(original))
+            self.assertEqual(Path(result['backups'][0]).read_text(), original)
+            key_path = Path(result['key_files'][0])
+            self.assertEqual(key_path.stat().st_mode & 0o777, 0o600)
+            for path in [target / 'config', target / 'config.termius', key_path]:
+                self.assertNotIn('NEVER-SAVE-', path.read_text())
+            forward = sshconfig.source_to_spec(str(target))
+            host = next(h for h in forward['hosts'] if h['label'] == 'new_host')
+            self.assertEqual((host['address'], host['port'], host['user']), ('192.0.2.2', 2201, 'alice'))
+            self.assertEqual(forward['keys'][host['key']]['private_key_file'], str(key_path))
+            second = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(json.loads(second.stdout)['added'], [])
+            self.assertEqual(json.loads(second.stdout)['backups'], [])
+            self.assertEqual((target / 'config.termius').read_text().count('Host new_host\n'), 1)
+
+    def test_reverse_dry_run_creates_nothing_and_reports_no_credentials(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root) / '.ssh'
+            data = {'hosts': [{'label': 'test', 'address': '192.0.2.1', 'auth': 'password', 'password': 'NEVER-PRINT'}]}
+            result = subprocess.run([sys.executable, str(SCRIPTS / 'vault_to_ssh.py'), str(target), '--dry-run'],
+                                    input=json.dumps(data), capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)['added'], ['test'])
+            self.assertFalse(target.exists())
+            self.assertNotIn('NEVER-PRINT', result.stdout + result.stderr)
+
+
 if __name__ == '__main__':
     unittest.main()

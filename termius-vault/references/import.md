@@ -1,8 +1,8 @@
 # Importing SSH configs
 
 Run from the skill directory. Windows Termius access is implemented through
-WSL; pure parsing also works without Windows. macOS vault access is not
-implemented or tested.
+WSL; pure parsing also works without Windows. macOS is theoretical and needs agent assessment of that machine; the shipped
+live-vault bridge is Windows-specific. See [reverse export](export-ssh.md).
 
 ## Merge sources before touching Termius
 
@@ -43,9 +43,8 @@ read or imported. A missing retained key fails preparation before app access.
 
 Use WSL-visible `.ssh` directories or config files. `C:/...` and `D:\...` paths
 in sources, IdentityFile and Include are mapped to `/mnt/<drive>/...`.
-`~` in IdentityFile uses the source's inferred home directory. Prefer explicit
-absolute Include paths: the parser does not reproduce all OpenSSH Include
-context rules.
+`~` in IdentityFile uses the source's inferred home directory. Quoted/absolute Includes and simple source-relative Includes are handled; the
+parser still does not reproduce all OpenSSH Include context rules.
 
 ## Parser boundary
 

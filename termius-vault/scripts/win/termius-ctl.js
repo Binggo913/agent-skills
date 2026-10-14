@@ -10,7 +10,7 @@
  *
  * Commands:
  *   doctor                    - environment sanity check (no app interaction)
- *   export  [--secrets]       - read + decrypt the local vault -> JSON on stdout
+ *   export  [--secrets|--keys] - read + decrypt the local vault -> JSON on stdout
  *   verify                    - print host -> identity -> key/port table
  *   push --desired <file.json> [--dry-run] [--restart]
  *
@@ -262,13 +262,17 @@ const all=async(db,st)=>{const conn=await openDb(db);try{return await new Promis
 const add=async(db,st,rec)=>{const conn=await openDb(db);try{return await new Promise((res,rej)=>{const tx=conn.transaction(st,'readwrite');const rq=tx.objectStore(st).add(rec);let id;rq.onsuccess=()=>{id=rq.result;};tx.oncomplete=()=>res(id);tx.onerror=tx.onabort=()=>rej(new Error('Vault write failed'));});}finally{conn.close();}};`;
 }
 
-function exportExpr(localKey, nativePath, withSecrets) {
+function exportExpr(localKey, nativePath, withSecrets, withKeys = false) {
   return `(async()=>{${pageHelpers(localKey, nativePath)}
 const hosts=await all('hosts','hosts'),cfgs=await all('ssh_configs','ssh_configs'),idents=await all('ssh_identities','ssh_identities'),keys=await all('keys','keys'),known=await all('known_hosts','known_hosts');
 const cfgBy=Object.fromEntries(cfgs.map(x=>[x.local_id,x])),idBy=Object.fromEntries(idents.map(x=>[x.local_id,x])),keyBy=Object.fromEntries(keys.map(x=>[x.local_id,x]));
 const out=hosts.map(h=>{const cfg=cfgBy[h.ssh_config&&h.ssh_config.local_id]||{};const idn=idBy[cfg.identity&&cfg.identity.local_id]||{};const kk=idn.ssh_key?keyBy[idn.ssh_key.local_id]:null;
-  const it={label:dec(h.label),address:dec(h.address),port:cfg.port==null?null:cfg.port,user:dec(idn.username),host_id:h.id==null?null:h.id};
-  if(${withSecrets ? 'true' : 'false'}){it.password=dec(idn.password)||'';if(kk){it.key_label=dec(kk.label);it.private_key=dec(kk.private_key);it.public_key=dec(kk.public_key);it.passphrase=dec(kk.passphrase);}}
+  const it={label:dec(h.label),address:dec(h.address),port:cfg.port==null?null:cfg.port,user:dec(idn.username),host_id:h.id==null?null:h.id,
+    auth:kk?'key':((dec(idn.password)||'')?'password':'none')};
+  if(kk)it.key_label=dec(kk.label);
+  if(${withSecrets ? 'true' : 'false'})it.password=dec(idn.password)||'';
+  if(${withSecrets || withKeys ? 'true' : 'false'}&&kk){it.private_key=dec(kk.private_key);it.public_key=dec(kk.public_key);}
+  if(${withSecrets ? 'true' : 'false'}&&kk)it.passphrase=dec(kk.passphrase);
   return it;});
 const nk=known.map(k=>({hostnames:dec(k.hostnames),key:dec(k.key)}));
 return JSON.stringify({hosts:out,known_hosts:nk});})()`;
@@ -373,12 +377,13 @@ async function runOperations(exe, opts, operations, deps = {}) {
   if (!operations.length) throw new Error('Batch must contain at least one operation');
   for (const op of operations) {
     if (!op || !['export', 'verify', 'push'].includes(op.command)) throw new Error('Unsupported batch operation');
-    const allowed = op.command === 'push' ? ['command', 'desired', 'dryRun', 'secrets'] : ['command', 'secrets'];
+    const allowed = op.command === 'push' ? ['command', 'desired', 'dryRun', 'secrets'] : (op.command === 'export' ? ['command', 'secrets', 'keys'] : ['command', 'secrets']);
     if (Object.keys(op).some((key) => !allowed.includes(key))) throw new Error('Unsupported operation field');
-    for (const field of ['secrets', 'dryRun']) {
+    for (const field of ['secrets', 'dryRun', 'keys']) {
       if (op[field] != null && typeof op[field] !== 'boolean') throw new Error('Operation flags must be boolean');
     }
     if (op.command === 'push') validateDesired(op.desired);
+    if (op.keys && op.command !== 'export') throw new Error('--keys is only valid for export');
     if (op.secrets && op.command !== 'export') throw new Error('--secrets is only valid for export');
   }
   // Read the Windows credential once, before changing app state.
@@ -393,7 +398,7 @@ async function runOperations(exe, opts, operations, deps = {}) {
     await session.open(operations.some((op) => op.command === 'push' && !op.dryRun));
     for (const op of operations) {
       const evaluate = async (expr) => JSON.parse(await session.connection.eval(expr));
-      if (op.command === 'export') out.push(await evaluate(exportExpr(localKey, nat, !!op.secrets)));
+      if (op.command === 'export') out.push(await evaluate(exportExpr(localKey, nat, !!op.secrets, !!op.keys)));
       else if (op.command === 'verify') out.push(await evaluate(verifyExpr(localKey, nat)));
       else {
         const current = await evaluate(verifyExpr(localKey, nat));
@@ -437,11 +442,12 @@ async function runOperations(exe, opts, operations, deps = {}) {
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
-  const opts = { restart: false, keepDebug: false, secrets: false, dryRun: false };
+  const opts = { restart: false, keepDebug: false, secrets: false, keys: false, dryRun: false };
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i];
     if (flag === '--restart') opts.restart = true;
     else if (flag === '--keep-debug') opts.keepDebug = true;
+    else if (flag === '--keys') opts.keys = true;
     else if (flag === '--secrets') opts.secrets = true;
     else if (flag === '--dry-run') opts.dryRun = true;
     else if (flag === '--desired' || flag === '--file') {
@@ -450,6 +456,7 @@ function parseArgs(argv) {
     } else throw new Error('Unknown option: ' + flag);
   }
   if (!['doctor', 'export', 'verify', 'push', 'batch'].includes(command)) throw new Error('Use doctor|export|verify|push|batch');
+  if (opts.keys && command !== 'export') throw new Error('--keys is only valid for export');
   if (opts.secrets && command !== 'export') throw new Error('--secrets is only valid for export');
   if (opts.dryRun && command !== 'push') throw new Error('--dry-run is only valid for push/import');
   if (command === 'push' && !opts.desired) throw new Error('push requires --desired');
@@ -463,7 +470,7 @@ function parseArgs(argv) {
 function operationsFor(command, opts, readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))) {
   if (command === 'batch') return readJson(opts.file).operations;
   if (command === 'push') return [{ command, dryRun: opts.dryRun, desired: readJson(opts.desired) }];
-  if (command === 'export') return [{ command, secrets: opts.secrets }];
+  if (command === 'export') return [{ command, secrets: opts.secrets, keys: opts.keys }];
   return [{ command }];
 }
 
