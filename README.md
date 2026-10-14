@@ -14,6 +14,22 @@ credentials, or machine-specific paths.
 |---|---|
 | [`termius-vault`](termius-vault/) | Read, export, verify, or import hosts/keys/passwords for the Termius desktop SSH client on Windows. |
 
+### Activation and token cost
+
+Every skill here sets `disable-model-invocation: true`, so it is **never
+selected automatically** and is **excluded from the system prompt**. That means
+installed-but-unused skills add **no tokens** to your requests. Invoke one only
+when you want it:
+
+```text
+/skill:termius-vault export
+```
+
+To let the model pick a skill up automatically from a task description instead,
+remove `disable-model-invocation: true` from that skill's frontmatter (it will
+then be advertised in the system prompt and cost a small number of tokens per
+request).
+
 ## Install
 
 Clone into a directory Pi scans, then `/reload` (or restart Pi):

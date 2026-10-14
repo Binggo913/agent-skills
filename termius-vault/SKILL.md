@@ -3,12 +3,24 @@ name: termius-vault
 description: Read, export, verify, or import hosts/keys/passwords for the Termius desktop SSH client on Windows by decrypting its local vault and, optionally, writing records back through Termius' own database. Use when a task involves inspecting or backing up Termius hosts, migrating an SSH config into Termius, bulk-adding hosts and identities (keys or passwords) to Termius, or verifying Termius host→identity→key mappings.
 license: MIT
 compatibility: Windows host with Termius desktop installed and signed in, driven from WSL/Linux. Requires cmd.exe and wslpath. Uses Termius' bundled Electron/Node runtime, so no separate Node.js or npm install is needed.
+disable-model-invocation: true
 metadata:
   platform: windows
   category: ssh
 ---
 
 # Termius Vault
+
+> **This skill never activates on its own.** `disable-model-invocation` is set,
+> so it is excluded from the system prompt and costs **no tokens unless you use
+> it**. Invoke it explicitly with the command below.
+>
+> ```
+> /skill:termius-vault
+> ```
+>
+> If you prefer the model to be able to pick it up automatically from a task
+> description, remove `disable-model-invocation: true` from the frontmatter.
 
 Talk to the local [Termius](https://termius.com) desktop vault on Windows: read
 it, print it, or push new hosts/identities into it. Everything runs against the
